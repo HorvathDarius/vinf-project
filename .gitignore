@@ -1,6 +1,5 @@
 # Crawled pages and crawl log: large, and recreated by running crawl.py
 data/
-standings.html
 
 # Python
 __pycache__/
