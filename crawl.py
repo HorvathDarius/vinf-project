@@ -6,7 +6,7 @@ import time
 HEADERS = {"User-Agent": "VINF-F1-crawler/0.1 (FIIT STU student project)"}
 
 BASE_URL = "https://www.driverdb.com"
-YEARS = range(2025, 2027)
+YEARS = range(1950, 2027)
 
 STANDINGS_URL = BASE_URL + "/championships/formula-1/{year}/standings"
 STANDINGS_DIR = "data/standings"
@@ -21,6 +21,9 @@ DRIVER_LOG_PATH = DRIVER_DIR + "/crawl.tsv"
 
 RACE_RESULTS_DIR = "data/race_results"
 RACE_RESULTS_LOG_PATH = RACE_RESULTS_DIR + "/crawl.tsv"
+
+TRACKS_DIR = "data/tracks"
+TRACKS_LOG_PATH = TRACKS_DIR + "/crawl.tsv"
 
 # Fetch a page and save it to path if the status is 200.
 # Retries on network errors and on 429/5xx; returns None if every attempt failed.
@@ -109,7 +112,7 @@ def crawl_standings():
         if os.path.exists(path):
             print(f"\tStandings for {year} already exist. Skipping.")
             continue
-        print(f"\tCrawling standings for {year}...\n")
+        print(f"\tCrawling standings for {year}...")
         response = fetch_and_save(url, path)
         if response is None or response.status_code != 200:
             if response is None:
@@ -167,6 +170,9 @@ def crawl_calendars():
             print(f"\tFailed to fetch calendar for {year}. Status code: {status}")
         time.sleep(2)
 
+
+
+# Find all round numbers in the HTML content of the calendar page for a given year
 def find_round_numbers(html, year):
     pattern = rf'href="/championships/formula-1/{year}/results/round-(\d+)"'
     rounds = set(re.findall(pattern, html))
@@ -199,8 +205,9 @@ def crawl_race_results(race_numbers, year):
         log_page(RACE_RESULTS_LOG_PATH, status, key, f"{RACE_RESULTS_DIR}/{year}-{number}.html", race_url)
         time.sleep(2)
 
+# Crawl all race results for all years
 def crawl_all_race_results():
-    print("===Crawling race results for all years...===\n")
+    print("===Crawling race results for all years...===")
     for year in YEARS:
         path = os.path.join(CALENDAR_DIR, f"{year}-calendar.html")
         # Skip seasons whose standings failed to download
@@ -215,6 +222,61 @@ def crawl_all_race_results():
         print(f"\tFound {len(round_numbers)} rounds for {year}.")
         round_numbers_with_index = list(enumerate(round_numbers))
         crawl_race_results(round_numbers_with_index, year)
+
+
+
+# Find all track slugs in the HTML content of the calendar page
+def find_tracks(html):
+    pattern = r'href="/tracks/([A-Za-z0-9-]+)"'
+    tracks = set(re.findall(pattern, html))
+    track_list = []
+    for track in tracks:
+        track_list.append(track)
+    return sorted(track_list)
+
+# Crawl all tracks given a list of (index, slug) tuples
+def crawl_tracks(tracks):
+    print(f"===Crawling tracks...===")
+    # Create dir
+    os.makedirs(TRACKS_DIR, exist_ok=True)
+    done_tracks = load_done(TRACKS_LOG_PATH)
+    for index, track in tracks:
+        key = track
+        # Construct URL
+        track_url = f"{BASE_URL}/tracks/{track}"
+        # If slug in LOG, then skip
+        if key in done_tracks:
+            print(f"\tSkipping track: {track} ({index + 1}/{len(tracks)})")
+            continue
+        # Else crawl
+        print(f"\tCrawling track: {track} ({index + 1}/{len(tracks)})")
+        response = fetch_and_save(track_url, f"{TRACKS_DIR}/{track}.html")
+        if response is None:
+            status = "error"
+        else:
+            status = str(response.status_code)
+        log_page(TRACKS_LOG_PATH, status, key, f"{TRACKS_DIR}/{track}.html", track_url)
+        time.sleep(2)
+
+# Find all track slugs across all seasons and return a sorted list of unique slugs
+def collect_track_slugs():
+    print("===Crawling tracks for all years...===")
+    all_tracks = set()
+    for year in YEARS:
+        path = os.path.join(CALENDAR_DIR, f"{year}-calendar.html")
+        # Skip seasons whose standings failed to download
+        if not os.path.exists(path):
+            print(f"\tCalendar for {year} not found. Skipping.")
+            continue
+
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        tracks = find_tracks(html)
+        print(f"\tFound {len(tracks)} tracks for {year}.")
+        # Set takes care of tracks used in multiple seasons
+        all_tracks.update(tracks)
+    return sorted(all_tracks)
 
 if __name__ == "__main__":
     total_start = time.time()
@@ -236,11 +298,22 @@ if __name__ == "__main__":
     hours = int(elapsed // 3600)
     minutes = int(elapsed % 3600 // 60)
     seconds = int(elapsed % 60)
-    print(f"\n===DRIVERS - Finished in {hours} h {minutes} min {seconds} s===" + "\n")
+    print(f"===DRIVERS - Finished in {hours} h {minutes} min {seconds} s===\n")
 
-    # Crawl calendars and race results
+    # Crawl calendars
     start = time.time()
     crawl_calendars()
+
+    # Elapsed time for calendar 
+    elapsed = time.time() - start
+    hours = int(elapsed // 3600)
+    minutes = int(elapsed % 3600 // 60)
+    seconds = int(elapsed % 60)
+    print(f"===CALENDARS - Finished in {hours} h {minutes} min {seconds} s===\n")
+
+    # Crawl race results
+    start = time.time()
+
     crawl_all_race_results()
 
     # Elapsed time for race results
@@ -248,7 +321,22 @@ if __name__ == "__main__":
     hours = int(elapsed // 3600)
     minutes = int(elapsed % 3600 // 60)
     seconds = int(elapsed % 60)
-    print(f"\n===RACE RESULTS - Finished in {hours} h {minutes} min {seconds} s===")
+    print(f"===RACE RESULTS - Finished in {hours} h {minutes} min {seconds} s===\n")
+
+    # Crawl tracks
+    start = time.time()
+
+    tracks = collect_track_slugs()
+    print(f"===Found {len(tracks)} unique tracks across all seasons.===\n")
+    tracks_with_index = list(enumerate(tracks))
+    crawl_tracks(tracks_with_index)
+
+    # Elapsed time for race results
+    elapsed = time.time() - start
+    hours = int(elapsed // 3600)
+    minutes = int(elapsed % 3600 // 60)
+    seconds = int(elapsed % 60)
+    print(f"===TRACKS - Finished in {hours} h {minutes} min {seconds} s===\n")
 
     # Total elapsed time
     total_elapsed = time.time() - total_start
