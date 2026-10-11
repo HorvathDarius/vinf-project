@@ -6,24 +6,32 @@ import time
 HEADERS = {"User-Agent": "VINF-F1-crawler/0.1 (FIIT STU student project)"}
 
 BASE_URL = "https://www.driverdb.com"
-YEARS = range(1950, 2027)
-
-STANDINGS_URL = BASE_URL + "/championships/formula-1/{year}/standings"
-STANDINGS_DIR = "data/standings"
-
-CALENDAR_URL = BASE_URL + "/championships/formula-1/{year}/calendar"
-CALENDAR_DIR = "data/calendars"
-
+YEARS = range(1950, 1951)
 RETRIES = 3
 
+# DIRS
+STANDINGS_DIR = "data/standings"
+CALENDAR_DIR = "data/calendars"
+TEAMS_BY_YEAR_DIR = "data/teams_year"
+TEAMS_DIR = "data/teams"
 DRIVER_DIR = "data/drivers"
-DRIVER_LOG_PATH = DRIVER_DIR + "/crawl.tsv"
-
 RACE_RESULTS_DIR = "data/race_results"
-RACE_RESULTS_LOG_PATH = RACE_RESULTS_DIR + "/crawl.tsv"
-
 TRACKS_DIR = "data/tracks"
+
+# URLS
+STANDINGS_URL = BASE_URL + "/championships/formula-1/{year}/standings"
+CALENDAR_URL = BASE_URL + "/championships/formula-1/{year}/calendar"
+TEAMS_BY_YEAR_URL = BASE_URL + "/championships/formula-1/{year}/teams"
+DRIVER_URL = BASE_URL + "/drivers/{driver_slug}"
+RACE_RESULTS_URL = BASE_URL + "/championships/formula-1/{year}/results/round-{round_number}/race-1"
+TRACKS_URL = BASE_URL + "/tracks/{track_slug}"
+TEAMS_URL = BASE_URL + "/teams/{team_slug}"
+
+# LOGS
+DRIVER_LOG_PATH = DRIVER_DIR + "/crawl.tsv"
+RACE_RESULTS_LOG_PATH = RACE_RESULTS_DIR + "/crawl.tsv"
 TRACKS_LOG_PATH = TRACKS_DIR + "/crawl.tsv"
+TEAMS_LOG_PATH = TEAMS_DIR + "/crawl.tsv"
 
 # Fetch a page and save it to path if the status is 200.
 # Retries on network errors and on 429/5xx; returns None if every attempt failed.
@@ -51,10 +59,59 @@ def fetch_and_save(url, path):
             time.sleep(2 * 2 ** attempt)  
     return None
 
+# Log crawled slug 
+def log_page(log_path, status, key, path, url):
+    new_file = not os.path.exists(log_path)
+    with open(log_path, "a", encoding="utf-8") as f:
+        if new_file:
+            f.write("status\tkey\tpath\turl\n")
+        driver_log = [status, str(key), path, url]
+        f.write("\t".join(driver_log) + "\n")
+
+# Load already crawled slugs from log file and return a set of keys
+def load_done(log_path):
+    done = set()
+    # If no file exists, no crawled drivers
+    if not os.path.exists(log_path):
+        return done
+    with open(log_path, encoding="utf-8") as f:
+        next(f)  # skip header
+        # Check if key is already in logs
+        for line in f:
+            status, key = line.strip().split("\t")[:2]
+            if status == "200":
+                done.add(key)
+    return done
+
+
+
+# Crawl standings for all years and save them to files
+def crawl_standings():
+    print("===Crawling standings for all years...===")
+    os.makedirs(STANDINGS_DIR, exist_ok=True)
+    # For each year in YEARS
+    for year in YEARS:
+        url = STANDINGS_URL.format(year=year)
+        path = os.path.join(STANDINGS_DIR, f"{year}-standings.html")
+        # Skip if file already exists
+        if os.path.exists(path):
+            print(f"\tStandings for {year} already exist. Skipping.")
+            continue
+        print(f"\tCrawling standings for {year}...")
+        response = fetch_and_save(url, path)
+        if response is None or response.status_code != 200:
+            if response is None:
+                status = "No response"
+            else:
+                status = response.status_code
+            print(f"\tFailed to fetch standings for {year}. Status code: {status}")
+        time.sleep(2)
+
 # Find all driver slugs in the HTML content of the standings page
 def find_driver_slugs(html):
     # set takes care of duplicates
-    slugs = set(re.findall(r'profile_url\\":\\"/drivers/([a-z0-9-]+)', html))
+    pattern = r'profile_url\\":\\"/drivers/([^\\]+)'
+    slugs = set(re.findall(pattern, html))
     return sorted(slugs)
 
 # Find all driver slugs across all seasons and return a sorted list of unique slugs
@@ -76,52 +133,6 @@ def collect_driver_slugs():
         all_slugs.update(slugs)
     return sorted(all_slugs)
 
-# Log crawled driver slug 
-def log_page(log_path, status, key, path, url):
-    new_file = not os.path.exists(log_path)
-    with open(log_path, "a", encoding="utf-8") as f:
-        if new_file:
-            f.write("status\tkey\tpath\turl\n")
-        driver_log = [status, str(key), path, url]
-        f.write("\t".join(driver_log) + "\n")
-
-# Load already crawled drivers
-def load_done(log_path):
-    done = set()
-    # If no file exists, no crawled drivers
-    if not os.path.exists(log_path):
-        return done
-    with open(log_path, encoding="utf-8") as f:
-        next(f)  # skip header
-        # Check if key is already in logs
-        for line in f:
-            status, key = line.strip().split("\t")[:2]
-            if status == "200":
-                done.add(key)
-    return done
-
-# Crawl standings for all years and save them to files
-def crawl_standings():
-    print("===Crawling standings for all years...===")
-    os.makedirs(STANDINGS_DIR, exist_ok=True)
-    # For each year in YEARS
-    for year in YEARS:
-        url = STANDINGS_URL.format(year=year)
-        path = os.path.join(STANDINGS_DIR, f"{year}-standings.html")
-        # Skip if file already exists
-        if os.path.exists(path):
-            print(f"\tStandings for {year} already exist. Skipping.")
-            continue
-        print(f"\tCrawling standings for {year}...")
-        response = fetch_and_save(url, path)
-        if response is None or response.status_code != 200:
-            if response is None:
-                status = "\tNo response"
-            else:
-                status = response.status_code
-            print(f"\tFailed to fetch standings for {year}. Status code: {status}")
-        time.sleep(2)
-
 # Crawl all drivers given a list of (index, slug) tuples
 def crawl_drivers(slugs):
     print("===Crawling drivers...===")
@@ -131,7 +142,7 @@ def crawl_drivers(slugs):
     done_drivers = load_done(DRIVER_LOG_PATH)
     for index, slug in slugs:
         # Construct URL
-        driver_url = f"{BASE_URL}/drivers/{slug}"
+        driver_url = DRIVER_URL.format(driver_slug=slug)
         # If slug in LOG, then skip
         if slug in done_drivers:
             print("\tSkipping driver:", slug, "(", index + 1, "/", len(slugs), ")")
@@ -171,7 +182,6 @@ def crawl_calendars():
         time.sleep(2)
 
 
-
 # Find all round numbers in the HTML content of the calendar page for a given year
 def find_round_numbers(html, year):
     pattern = rf'href="/championships/formula-1/{year}/results/round-(\d+)"'
@@ -181,7 +191,7 @@ def find_round_numbers(html, year):
         round_numbers.append(int(r))
     return sorted(round_numbers)
 
-# Crawl all drivers given a list of (index, slug) tuples
+# Crawl all race results for a given year
 def crawl_race_results(race_numbers, year):
     print(f"===Crawling race results for {year}...===")
     # Create dir
@@ -190,7 +200,7 @@ def crawl_race_results(race_numbers, year):
     for index, number in race_numbers:
         key = f"{year}-round-{number}"
         # Construct URL
-        race_url = f"{BASE_URL}/championships/formula-1/{year}/results/round-{number}/race-1"
+        race_url = RACE_RESULTS_URL.format(year=year, round_number=number)
         # If slug in LOG, then skip
         if key in doe_race_results:
             print(f"\tSkipping race: {number} ({index + 1}/{len(race_numbers)})")
@@ -210,7 +220,7 @@ def crawl_all_race_results():
     print("===Crawling race results for all years...===")
     for year in YEARS:
         path = os.path.join(CALENDAR_DIR, f"{year}-calendar.html")
-        # Skip seasons whose standings failed to download
+        # Skip seasons whose calendar failed to download
         if not os.path.exists(path):
             print(f"\tCalendar for {year} not found. Skipping.")
             continue
@@ -227,7 +237,7 @@ def crawl_all_race_results():
 
 # Find all track slugs in the HTML content of the calendar page
 def find_tracks(html):
-    pattern = r'href="/tracks/([A-Za-z0-9-]+)"'
+    pattern = r'href="/tracks/([^"]+)"'
     tracks = set(re.findall(pattern, html))
     track_list = []
     for track in tracks:
@@ -243,7 +253,7 @@ def crawl_tracks(tracks):
     for index, track in tracks:
         key = track
         # Construct URL
-        track_url = f"{BASE_URL}/tracks/{track}"
+        track_url = TRACKS_URL.format(track_slug=track)
         # If slug in LOG, then skip
         if key in done_tracks:
             print(f"\tSkipping track: {track} ({index + 1}/{len(tracks)})")
@@ -264,7 +274,7 @@ def collect_track_slugs():
     all_tracks = set()
     for year in YEARS:
         path = os.path.join(CALENDAR_DIR, f"{year}-calendar.html")
-        # Skip seasons whose standings failed to download
+        # Skip seasons whose tracks failed to download
         if not os.path.exists(path):
             print(f"\tCalendar for {year} not found. Skipping.")
             continue
@@ -278,6 +288,86 @@ def collect_track_slugs():
         all_tracks.update(tracks)
     return sorted(all_tracks)
 
+
+
+# Crawl teams pages from all years and save them to files
+def crawl_teams_by_year():
+    print("===Crawling teams for all years...===")
+    os.makedirs(TEAMS_BY_YEAR_DIR, exist_ok=True)
+    # For each year in YEARS
+    for year in YEARS:
+        url = TEAMS_BY_YEAR_URL.format(year=year)
+        path = os.path.join(TEAMS_BY_YEAR_DIR, f"{year}-teams.html")
+        # Skip if file already exists
+        if os.path.exists(path):
+            print(f"\tTeams for {year} already exist. Skipping.")
+            continue
+        print(f"\tCrawling teams for {year}...")
+        response = fetch_and_save(url, path)
+        if response is None or response.status_code != 200:
+            if response is None:
+                status = "No response"
+            else:
+                status = response.status_code
+            print(f"\tFailed to fetch teams for {year}. Status code: {status}")
+        time.sleep(2)
+
+# Find all team slugs across all seasons and return a sorted list of unique slugs
+def find_team_slugs(html):
+    # Find all team slugs in the HTML
+    pattern = r'href="/championships/formula-1/\d+/teams/([^"]+)"'
+    teams = set(re.findall(pattern, html))
+    team_list = []
+    for team in teams:
+        team_list.append(team)
+    return sorted(team_list)
+
+# Find all team slugs across all seasons and return a sorted list of unique slugs
+def collect_team_slugs():
+    print("===Collecting team slugs for all years...===")
+    all_teams = set()
+    for year in YEARS:
+        path = os.path.join(TEAMS_BY_YEAR_DIR, f"{year}-teams.html")
+        # Skip seasons whose teams failed to download
+        if not os.path.exists(path):
+            print(f"\tTeams for {year} not found. Skipping.")
+            continue
+
+        with open(path, "r", encoding="utf-8") as f:
+            html = f.read()
+
+        teams = find_team_slugs(html)
+        print(f"\tFound {len(teams)} teams for {year}.")
+        # Set takes care of teams used in multiple seasons
+        all_teams.update(teams)
+    return sorted(all_teams)
+
+# Crawl all teams given a list of (index, slug) tuples
+def crawl_teams(slugs):
+    print(f"===Crawling teams...===")
+    # Create dir
+    os.makedirs(TEAMS_DIR, exist_ok=True)
+    done_teams = load_done(TEAMS_LOG_PATH)
+    for index, slug in slugs:
+        key = slug
+        # Construct URL
+        team_url = TEAMS_URL.format(team_slug=slug)
+        # If slug in LOG, then skip
+        if key in done_teams:
+            print(f"\tSkipping team: {slug} ({index + 1}/{len(slugs)})")
+            continue
+        # Else crawl
+        print(f"\tCrawling team: {slug} ({index + 1}/{len(slugs)})")
+        response = fetch_and_save(team_url, f"{TEAMS_DIR}/{slug}.html")
+        if response is None:
+            status = "error"
+        else:
+            status = str(response.status_code)
+        log_page(TEAMS_LOG_PATH, status, key, f"{TEAMS_DIR}/{slug}.html", team_url)
+        time.sleep(2)
+
+
+# Main program
 if __name__ == "__main__":
     total_start = time.time()
     start = time.time()
@@ -337,6 +427,24 @@ if __name__ == "__main__":
     minutes = int(elapsed % 3600 // 60)
     seconds = int(elapsed % 60)
     print(f"===TRACKS - Finished in {hours} h {minutes} min {seconds} s===\n")
+
+    # Crawl teams
+    start = time.time()
+
+    crawl_teams_by_year()
+    team_slugs = collect_team_slugs()
+    print(f"===Found {len(team_slugs)} unique team slugs across all seasons.===\n")
+    team_slugs_with_index = list(enumerate(team_slugs))
+    print(team_slugs)
+    crawl_teams(team_slugs_with_index)
+
+
+    # Elapsed time for teams
+    elapsed = time.time() - start
+    hours = int(elapsed // 3600)
+    minutes = int(elapsed % 3600 // 60)
+    seconds = int(elapsed % 60)
+    print(f"===TEAMS - Finished in {hours} h {minutes} min {seconds} s===\n")
 
     # Total elapsed time
     total_elapsed = time.time() - total_start
