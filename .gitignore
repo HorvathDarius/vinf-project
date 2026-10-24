@@ -1,5 +1,7 @@
 # Crawled pages and crawl log: large, and recreated by running crawl.py
 data/
+extracted/
+index/
 
 # Python
 __pycache__/
