@@ -1,7 +1,7 @@
 import os
 import time
 import re
-from common import fetch_and_save, log_page, load_done, print_elapsed_time
+from common import fetch_and_save, log_page, load_done, print_elapsed_time, crawl_delay
 
 BASE_URL = "https://www.f1-fansite.com"
 YEARS = range(1950, 2027)
@@ -38,7 +38,7 @@ def crawl_sitemaps():
             else:
                 status = response.status_code
             print(f"\tFailed to fetch sitemap for {year}. Status code: {status}")
-        time.sleep(2)
+        time.sleep(crawl_delay(url))
 
 # Find all race report URLs in the sitemap XML
 def find_race_report_urls(xml):
@@ -106,7 +106,7 @@ def crawl_race_reports(race_urls):
         else:
             status = str(response.status_code)
         log_page(RACE_REPORTS_LOG_PATH, status, key, path, url)
-        time.sleep(2)
+        time.sleep(crawl_delay(url))
 
 def crawl_f1_fansite():
     start = time.time()

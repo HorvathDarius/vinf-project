@@ -1,4 +1,4 @@
-from common import fetch_and_save, log_page, load_done, print_elapsed_time
+from common import fetch_and_save, log_page, load_done, print_elapsed_time, crawl_delay
 import re
 import time
 import os
@@ -51,7 +51,7 @@ def crawl_standings():
             else:
                 status = response.status_code
             print(f"\tFailed to fetch standings for {year}. Status code: {status}")
-        time.sleep(2)
+        time.sleep(crawl_delay(url))
 
 # Find all driver slugs in the HTML content of the standings page
 def find_driver_slugs(html):
@@ -94,22 +94,22 @@ def crawl_drivers(slugs):
             print("\tSkipping driver:", slug, "(", index + 1, "/", len(slugs), ")")
             continue
         # Else crawl
-        print ("\tCrawling driver:", slug, "(", index + 1, "/", len(slugs), ")")
+        print("\tCrawling driver:", slug, "(", index + 1, "/", len(slugs), ")")
         response = fetch_and_save(driver_url, f"{DRIVER_DIR}/{slug}.html")
         if response is None:
             status = "error"
         else:
             status = str(response.status_code)
         log_page(DRIVER_LOG_PATH, status, slug, f"{DRIVER_DIR}/{slug}.html", driver_url)
-        time.sleep(2)
+        time.sleep(crawl_delay(driver_url))
 
     
 
-# Crawl all calendarts for all years and save them to files
+# Crawl all calendars for all years and save them to files
 def crawl_calendars():
     print("===Crawling calendars for all years...===")
     os.makedirs(CALENDAR_DIR, exist_ok=True)
-        # For each year in YEARS
+    # For each year in YEARS
     for year in YEARS:
         url = CALENDAR_URL.format(year=year)
         path = os.path.join(CALENDAR_DIR, f"{year}-calendar.html")
@@ -125,7 +125,7 @@ def crawl_calendars():
             else:
                 status = response.status_code
             print(f"\tFailed to fetch calendar for {year}. Status code: {status}")
-        time.sleep(2)
+        time.sleep(crawl_delay(url))
 
 
 # Find all round numbers in the HTML content of the calendar page for a given year
@@ -159,7 +159,7 @@ def crawl_race_results(race_numbers, year):
         else:
             status = str(response.status_code)
         log_page(RACE_RESULTS_LOG_PATH, status, key, f"{RACE_RESULTS_DIR}/{year}-{number}.html", race_url)
-        time.sleep(2)
+        time.sleep(crawl_delay(race_url))
 
 # Crawl all race results for all years
 def crawl_all_race_results():
@@ -192,7 +192,7 @@ def find_tracks(html):
 
 # Crawl all tracks given a list of (index, slug) tuples
 def crawl_tracks(tracks):
-    print(f"===Crawling tracks...===")
+    print("===Crawling tracks...===")
     # Create dir
     os.makedirs(TRACKS_DIR, exist_ok=True)
     done_tracks = load_done(TRACKS_LOG_PATH)
@@ -212,7 +212,7 @@ def crawl_tracks(tracks):
         else:
             status = str(response.status_code)
         log_page(TRACKS_LOG_PATH, status, key, f"{TRACKS_DIR}/{track}.html", track_url)
-        time.sleep(2)
+        time.sleep(crawl_delay(track_url))
 
 # Find all track slugs across all seasons and return a sorted list of unique slugs
 def collect_track_slugs():
@@ -256,7 +256,7 @@ def crawl_teams_by_year():
             else:
                 status = response.status_code
             print(f"\tFailed to fetch teams for {year}. Status code: {status}")
-        time.sleep(2)
+        time.sleep(crawl_delay(url))
 
 # Find all team slugs across all seasons and return a sorted list of unique slugs
 def find_team_slugs(html):
@@ -290,7 +290,7 @@ def collect_team_slugs():
 
 # Crawl all teams given a list of (index, slug) tuples
 def crawl_teams(slugs):
-    print(f"===Crawling teams...===")
+    print("===Crawling teams...===")
     # Create dir
     os.makedirs(TEAMS_DIR, exist_ok=True)
     done_teams = load_done(TEAMS_LOG_PATH)
@@ -310,7 +310,7 @@ def crawl_teams(slugs):
         else:
             status = str(response.status_code)
         log_page(TEAMS_LOG_PATH, status, key, f"{TEAMS_DIR}/{slug}.html", team_url)
-        time.sleep(2)
+        time.sleep(crawl_delay(team_url))
 
 
 def crawl_driverdb():
@@ -321,7 +321,7 @@ def crawl_driverdb():
 
     # Crawl standings
     crawl_standings()
-    # Get all unqiue drivers from standings HTML files
+    # Get all unique drivers from standings HTML files
     slugs = collect_driver_slugs()
     print(f"===Found {len(slugs)} unique driver slugs across all seasons.===\n")
     slugs_with_index = list(enumerate(slugs))

@@ -70,7 +70,7 @@ def snippet(text, terms, data):
     words = text.split()
     present = [term for term in terms if term in data["index"]]
     for term in sorted(present, key=lambda term: len(data["index"][term])):
-        for i,word in enumerate(words):
+        for i, word in enumerate(words):
             if term in tokenize(word):
                 start = max(0, i - SNIPPET_WORDS // 2)
                 end = min(len(words), start + SNIPPET_WORDS)

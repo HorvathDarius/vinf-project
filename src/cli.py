@@ -1,11 +1,12 @@
 import argparse
+import traceback
 
 import crawl
 import crawl_fansite
 import extract
 import index
 import search
-import traceback
+import stats
 
 # Crawl one source or both
 def run_crawl(source):
@@ -32,6 +33,9 @@ def cmd_search(args):
     else:
         search.interactive(data, args.idf)
 
+def cmd_stats(args):
+    stats.print_stats()
+
 # Parse command line arguments, without a command open the menu
 def main():
     parser = argparse.ArgumentParser(prog="cli.py", description="F1 search engine (VINF Project)")
@@ -52,6 +56,9 @@ def main():
     search_parser.add_argument("--idf", choices=["classic", "max", "compare"], default="classic", help="IDF method to use for scoring")
     search_parser.set_defaults(func=cmd_search)
 
+    stats_parser = commands.add_parser("stats", help="Print statistics about the data")
+    stats_parser.set_defaults(func=cmd_stats)
+
     args = parser.parse_args()
     if args.command is None:
         menu()
@@ -65,7 +72,6 @@ def ask(prompt):
     except (EOFError, KeyboardInterrupt):
         print()
         return "0"
-
 
 # Crawl submenu, asks for confirmation because a full crawl takes hours
 def menu_crawl():
@@ -88,6 +94,7 @@ MENU = {
     "2": ("Extract", extract.extract_all),
     "3": ("Index", index.build),
     "4": ("Search", menu_search),
+    "5": ("Stats", stats.print_stats),
 }
 
 # Main menu loop, an error in one action is printed and the menu continues

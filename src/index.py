@@ -35,7 +35,6 @@ def load_documents():
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
                 doc = json.loads(line)
-                doc["label"] = label
                 doc["title"] = doc_title(doc)
                 docs.append(doc)
     return docs

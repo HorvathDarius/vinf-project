@@ -1,14 +1,41 @@
 import requests
 import os
 import time
+from urllib import robotparser
+from urllib.parse import urlsplit
 
+DEFAULT_DELAY = 2
+robots = {}
 HEADERS = {"User-Agent": "VINF-F1-crawler/0.1 (FIIT STU student project)"}
 RETRIES = 3
 
+# Download and parse robots.txt of the site the url belongs to
+def get_robots(url):
+    parts = urlsplit(url)
+    site = f"{parts.scheme}://{parts.netloc}"
+    if site not in robots:
+        parser = robotparser.RobotFileParser()
+        try:
+            response = requests.get(site + "/robots.txt", headers=HEADERS, timeout=10)
+            lines = response.text.splitlines() if response.status_code == 200 else []
+        except requests.RequestException:
+            lines = []
+        parser.parse(lines)
+        robots[site] = parser
+    return robots[site]
+
+# Crawl delay from robots.txt
+def crawl_delay(url):
+    delay = get_robots(url).crawl_delay(HEADERS["User-Agent"])
+    return max(delay or 0, DEFAULT_DELAY)
 
 # Fetch a page and save it to path if the status is 200.
 # Retries on network errors and on 429/5xx; returns None if every attempt failed.
 def fetch_and_save(url, path):
+    if not get_robots(url).can_fetch(HEADERS["User-Agent"], url):
+        print(f"\t\tBlocked by robots.txt: {url}")
+        return None
+
     # Retry mechanism
     for attempt in range(RETRIES):
         try:
@@ -44,7 +71,7 @@ def log_page(log_path, status, key, path, url):
 # Load already crawled slugs from log file and return a set of keys
 def load_done(log_path):
     done = set()
-    # If no file exists, no crawled drivers
+    # If no file exists, no crawled pages
     if not os.path.exists(log_path):
         return done
     with open(log_path, encoding="utf-8") as f:

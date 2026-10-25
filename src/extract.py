@@ -40,7 +40,7 @@ def clean_value(value):
 def clean_html_text(text):
     if text is None:
         return None
-    return html_lib.unescape(text).strip()
+    return html_lib.unescape(text).replace("\xa0", " ").strip()
 
 # Strip tags, scripts and nav, decode HTML entities, collapse whitespace
 def html_to_text(fragment):
