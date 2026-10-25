@@ -38,8 +38,8 @@ def log_page(log_path, status, key, path, url):
     with open(log_path, "a", encoding="utf-8") as f:
         if new_file:
             f.write("status\tkey\tpath\turl\n")
-        driver_log = [status, str(key), path, url]
-        f.write("\t".join(driver_log) + "\n")
+        doc_log = [status, str(key), path, url]
+        f.write("\t".join(doc_log) + "\n")
 
 # Load already crawled slugs from log file and return a set of keys
 def load_done(log_path):
@@ -56,3 +56,9 @@ def load_done(log_path):
                 done.add(key)
     return done
 
+def print_elapsed_time(label, start):
+    elapsed = time.time() - start
+    hours = int(elapsed // 3600)
+    minutes = int((elapsed % 3600) // 60)
+    seconds = int(elapsed % 60)
+    print(f"==={label} - Finished in {hours}h {minutes}m {seconds}s===\n")

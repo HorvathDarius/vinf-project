@@ -1,7 +1,7 @@
 import os
 import time
 import re
-from common import fetch_and_save, log_page, load_done
+from common import fetch_and_save, log_page, load_done, print_elapsed_time
 
 BASE_URL = "https://www.f1-fansite.com"
 YEARS = range(1950, 2027)
@@ -108,7 +108,7 @@ def crawl_race_reports(race_urls):
         log_page(RACE_REPORTS_LOG_PATH, status, key, path, url)
         time.sleep(2)
 
-if __name__ == "__main__":
+def crawl_f1_fansite():
     start = time.time()
 
     crawl_sitemaps()
@@ -117,10 +117,8 @@ if __name__ == "__main__":
     race_urls_with_index = list(enumerate(race_urls))
     crawl_race_reports(race_urls_with_index)
 
+    # Elapsed time for race reports
+    print_elapsed_time("RACE REPORTS", start)
 
-    # Elapsed time for race restuls
-    elapsed = time.time() - start
-    hours = int(elapsed // 3600)
-    minutes = int(elapsed % 3600 // 60)
-    seconds = int(elapsed % 60)
-    print(f"===RACE RESULTS - Finished in {hours} h {minutes} min {seconds} s===\n")
+if __name__ == "__main__":
+    crawl_f1_fansite()

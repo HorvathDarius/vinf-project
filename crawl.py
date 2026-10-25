@@ -1,4 +1,4 @@
-from common import fetch_and_save, log_page, load_done
+from common import fetch_and_save, log_page, load_done, print_elapsed_time
 import re
 import time
 import os
@@ -142,13 +142,13 @@ def crawl_race_results(race_numbers, year):
     print(f"===Crawling race results for {year}...===")
     # Create dir
     os.makedirs(RACE_RESULTS_DIR, exist_ok=True)
-    doe_race_results = load_done(RACE_RESULTS_LOG_PATH)
+    done_race_results = load_done(RACE_RESULTS_LOG_PATH)
     for index, number in race_numbers:
         key = f"{year}-round-{number}"
         # Construct URL
         race_url = RACE_RESULTS_URL.format(year=year, round_number=number)
         # If slug in LOG, then skip
-        if key in doe_race_results:
+        if key in done_race_results:
             print(f"\tSkipping race: {number} ({index + 1}/{len(race_numbers)})")
             continue
         # Else crawl
@@ -313,8 +313,7 @@ def crawl_teams(slugs):
         time.sleep(2)
 
 
-# Main program
-if __name__ == "__main__":
+def crawl_driverdb():
     total_start = time.time()
     start = time.time()
 
@@ -328,73 +327,43 @@ if __name__ == "__main__":
     slugs_with_index = list(enumerate(slugs))
     # Crawl all drivers
     crawl_drivers(slugs_with_index)
-
     # Elapsed time for drivers
-    elapsed = time.time() - start
-    hours = int(elapsed // 3600)
-    minutes = int(elapsed % 3600 // 60)
-    seconds = int(elapsed % 60)
-    print(f"===DRIVERS - Finished in {hours} h {minutes} min {seconds} s===\n")
+    print_elapsed_time("DRIVERS", start)
 
     # Crawl calendars
     start = time.time()
     crawl_calendars()
-
     # Elapsed time for calendar 
-    elapsed = time.time() - start
-    hours = int(elapsed // 3600)
-    minutes = int(elapsed % 3600 // 60)
-    seconds = int(elapsed % 60)
-    print(f"===CALENDARS - Finished in {hours} h {minutes} min {seconds} s===\n")
+    print_elapsed_time("CALENDARS", start)
 
     # Crawl race results
     start = time.time()
-
     crawl_all_race_results()
-
     # Elapsed time for race results
-    elapsed = time.time() - start
-    hours = int(elapsed // 3600)
-    minutes = int(elapsed % 3600 // 60)
-    seconds = int(elapsed % 60)
-    print(f"===RACE RESULTS - Finished in {hours} h {minutes} min {seconds} s===\n")
+    print_elapsed_time("RACE RESULTS", start)
 
     # Crawl tracks
     start = time.time()
-
     tracks = collect_track_slugs()
     print(f"===Found {len(tracks)} unique tracks across all seasons.===\n")
     tracks_with_index = list(enumerate(tracks))
     crawl_tracks(tracks_with_index)
-
     # Elapsed time for race results
-    elapsed = time.time() - start
-    hours = int(elapsed // 3600)
-    minutes = int(elapsed % 3600 // 60)
-    seconds = int(elapsed % 60)
-    print(f"===TRACKS - Finished in {hours} h {minutes} min {seconds} s===\n")
+    print_elapsed_time("TRACKS", start)
 
     # Crawl teams
     start = time.time()
-
     crawl_teams_by_year()
     team_slugs = collect_team_slugs()
     print(f"===Found {len(team_slugs)} unique team slugs across all seasons.===\n")
     team_slugs_with_index = list(enumerate(team_slugs))
-    print(team_slugs)
     crawl_teams(team_slugs_with_index)
-
-
     # Elapsed time for teams
-    elapsed = time.time() - start
-    hours = int(elapsed // 3600)
-    minutes = int(elapsed % 3600 // 60)
-    seconds = int(elapsed % 60)
-    print(f"===TEAMS - Finished in {hours} h {minutes} min {seconds} s===\n")
+    print_elapsed_time("TEAMS", start)
 
     # Total elapsed time
-    total_elapsed = time.time() - total_start
-    total_hours = int(total_elapsed // 3600)
-    total_minutes = int(total_elapsed % 3600 // 60)
-    total_seconds = int(total_elapsed % 60)
-    print(f"\n===TOTAL - Finished in {total_hours} h {total_minutes} min {total_seconds} s===" + "\n")
+    print_elapsed_time("TOTAL", total_start)
+
+# Main program
+if __name__ == "__main__":
+    crawl_driverdb()

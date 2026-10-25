@@ -5,6 +5,7 @@ import html as html_lib
 from crawl import DRIVER_LOG_PATH, RACE_RESULTS_LOG_PATH, TEAMS_LOG_PATH, TRACKS_LOG_PATH
 from crawl_fansite import RACE_REPORTS_LOG_PATH
 
+# === DIRS ===
 EXTRACTED_DIR = "extracted"
 DRIVERS_JSONL = EXTRACTED_DIR + "/drivers.jsonl"
 RACE_RESULTS_JSONL = EXTRACTED_DIR + "/race_results.jsonl"
@@ -13,113 +14,20 @@ TEAMS_JSONL = EXTRACTED_DIR + "/teams.jsonl"
 TRACKS_JSONL = EXTRACTED_DIR + "/tracks.jsonl"
 
 
-# DRIVERS
-# JSON-LD block with the page's main person (plain JSON, not escaped)
-PERSON_RE = re.compile(r'"@type":"Person",(.*?)</script>')
-NAME_RE = re.compile(r'"name":"([^"]+)"')
-BIRTH_DATE_RE = re.compile(r'"birthDate":"([^"]+)"')
-DEATH_DATE_RE = re.compile(r'"deathDate":"([^"]+)"')
-NATIONALITY_RE = re.compile(r'"nationality":\{"@type":"Country","name":"([^"]+)"')
-AWARDS_RE = re.compile(r'"award":\[(.*?)\]')
-AWARD_ITEM_RE = re.compile(r'"([^"]+)"')
-F1_TITLE_RE = re.compile(
-    r'^(\d{4}) (FIA World Championship of Drivers|FIA World Championship Formula One'
-    r'|FIA Formula One World Championship|FIA Formula 1 World Championship)$'
-)
-# Escaped NEXT.JS JSON - the page has records of several drivers, so we create a link back to the driver
-PLACES_RE = (
-    r'\\"place_of_birth\\":(?:\\"([^"]*?)\\"|null),\\"dod\\":[^,]*,'
-    r'\\"place_of_death\\":(?:\\"([^"]*?)\\"|null),\\"ddb_url\\":\\"{slug}\\"'
-)
-# F1 stats block (the page also has stats from other series)
-F1_STATS_RE = re.compile(
-    r'\\"legacy_url\\":\\"formula-1\\",\\"championship_id\\":1,\\"stats\\":'
-    r'{\\"races\\":(\d+),\\"wins\\":(\d+),\\"podiums\\":(\d+),\\"poles\\":(\d+)'
-)
+
+# === COMMON ===
+
+# Generic Regexes
+# Remove tags, decode entities, collapse whitespace
+TAGS_RE = re.compile(r'<[^>]+>')
+SCRIPT_STYLE_RE = re.compile(r'<(script|style|nav)[^>]*>.*?</\1>', re.DOTALL)
+WHITESPACE_RE = re.compile(r'\s+')
 # Escaped whitespaces from inside JSON strings
 ESCAPED_WS_RE = re.compile(r'\\+[tnr]')
 
 
 
-# RACE-RESUTLS
-# Race page: name, date and track
-RACE_NAME_RE = re.compile(r'<h1[^>]*>([^<]+)</h1>')
-RACE_DATE_RE = re.compile(r'"@type":"SportsEvent".*?"startDate":"([^"]+)"')
-RACE_TRACK_RE = re.compile(r'"@type":"SportsActivityLocation","name":"([^"]+)"')
-# Result records in escaped JSON
-RESULT_START_RE = re.compile(r'\{\\"session_results_id\\":(\d+),')
-POSITION_RE = re.compile(r'\\"finish_position\\":(\d+)')
-GRID_RE = re.compile(r'\\"grid_position\\":(\d+)')
-STATUS_RE = re.compile(r'\\"finish_status\\":\\"([^"\\]+)\\"')
-LAPS_RE = re.compile(r'\\"total_driving_laps\\":(\d+)')
-POINTS_RE = re.compile(r'\\"championship_points\\":([\d.]+)')
-CAR_NUMBER_RE = re.compile(r'\\"car_number\\":\\"([^"\\]+)\\"')
-RESULT_DRIVER_NAME_RE = re.compile(r'\\"full_name\\":\\"([^"\\]+)\\"')
-RESULT_DRIVER_SLUG_RE = re.compile(r'\\"profile_url\\":\\"/drivers/([^"\\]+)\\"')
-RESULT_TEAM_RE = re.compile(r'\\"team\\":\{\\"id\\":\d+,\\"name\\":\\"([^"\\]+)\\"')
-
-
-
-# RACE REPORTS
-# f1-fansite race report: Wordpress HTML
-REPORT_TITLE_RE = re.compile(r'<h1[^>]*>\s*([^<]+?)\s*</h1>')
-REPORT_DATE_RE = re.compile(r'<time class="entry-date"[^>]*datetime="(\d{4}-\d{2}-\d{2})')
-REPORT_EVENT_RE = re.compile(r'Event:(?:</strong>)?\s*<a[^>]*>([^<]+)</a>')
-REPORT_TRACK_RE = re.compile(r'Track:(?:</strong>)?\s*<a[^>]*>([^<]+)</a>')
-REPORT_WEATHER_RE = re.compile(r'Weather:(?:</strong>)?\s*(.*?)(?:<br|</p>)', re.DOTALL)
-REPORT_YEAR_RE = re.compile(r'(?:19|20)\d{2}')
-# Article
-REPORT_ARTICLE_RE = re.compile(
-    r'<div id="post-\d+" class="entry [^"]*"\s*>(.*?)'
-    r'(?:<h[23][^>]*>[^<]*</h[23]>\s*)?<div id="msr_result"',
-    re.DOTALL,
-)
-# Results table and its rows
-REPORT_TABLE_RE = re.compile(r'<table class="motor-sport-results msr_result[^"]*">(.*?)</table>', re.DOTALL)
-REPORT_ROW_RE = re.compile(r'<tr[^>]*>(.*?)</tr>', re.DOTALL)
-ROW_POSITION_RE = re.compile(r'msr-rank-badge">(\d+)<')
-ROW_NUMBER_RE = re.compile(r'<th class="msr_col2">([^<]*)<')
-ROW_DRIVER_RE = re.compile(r'class="msr-driver-name[^"]*"[^>]*aria-label="([^"]+)"')
-# Team cell has two markups (with and without msr-result-team span), anchor on the col
-ROW_TEAM_RE = re.compile(r'<td class="msr_col4">.*?<a [^>]*>([^<]+)</a>', re.DOTALL)
-ROW_GRID_RE = re.compile(r'<td class="msr_col8">(\d+)<')
-ROW_LAPS_RE = re.compile(r'<td class="msr_col6">(\d+)<')
-ROW_STATUS_RE = re.compile(r'msr-rank-classified"[^>]*>([^<]+)<')
-# Finish time, or retirement reason
-ROW_TIME_RE = re.compile(r'<td class="msr_col5">([^<]+)<')
-ROW_POINTS_RE = re.compile(r'<td class="msr_col9">([\d.]+)<')
-# Remove tags, decode entities, collapse whitespace
-TAGS_RE = re.compile(r'<[^>]+>')
-SCRIPT_STYLE_RE = re.compile(r'<(script|style|nav)[^>]*>.*?</\1>', re.DOTALL)
-WHITESPACE_RE = re.compile(r'\s+')
-
-
-
-# TEAMS
-TEAM_LD_RE = re.compile(r'"@type":"SportsTeam","name":"([^"]+)","url":"[^"]*"(?:,"description":"((?:[^"\\]|\\.)*)")?')
-TEAM_TITLE_RE = re.compile(r'<title>([^<]+?) – ')
-TEAM_FULL_NAME_RE = r'\\"name\\":\\"([^"\\]+)\\",\\"team_ddb_url\\":\\"{slug}\\"'
-TEAM_COUNTRY_RE = r'\\"team_ddb_url\\":\\"{slug}\\",\\"country\\":\{{\\"id\\":\d+,\\"name\\":\\"([^"\\]+)\\"'
-HEADQUARTERS_RE = re.compile(r'\\"headquarters\\":\\"([^"\\]+)\\"')
-PRINCIPAL_RE = re.compile(r'\\"principal\\":\\"([^"\\]+)\\"')
-
-
-
-# TRACKS
-TRACK_NAME_RE = re.compile(r'"@type":"SportsActivityLocation","name":"([^"]+)"')
-TRACK_COUNTRY_RE = re.compile(r'"addressCountry":"([^"]+)"')
-TRACK_GEO_RE = re.compile(r'"latitude":(-?[\d.]+),"longitude":(-?[\d.]+)')
-TRACK_DESCRIPTION_RE = re.compile(r'>Track Information</h3><p[^>]*>(.*?)</p>', re.DOTALL)
-NO_DESCRIPTION = "No information available."
-LAYOUTS_RE = re.compile(r'\\"layouts\\":\[(.*?)\]')
-LAYOUT_ITEM_RE = re.compile(
-    r'\\"layout_name\\":(?:\\"([^"\\]*)\\"|null),\\"length_meters\\":(\d+|null),'
-    r'\\"active_from\\":(\d+|null),\\"active_to\\":(\d+|null)'
-)
-
-
-
-# HELPER FUNCTIONS
+# === HELPER FUNCTIONS ===
 
 # Clean a value from escaped JSON, empty string -> None
 def clean_value(value):
@@ -128,7 +36,7 @@ def clean_value(value):
     value = ESCAPED_WS_RE.sub(" ", value).strip()
     return value or None
 
-# Decode HTML entitites
+# Decode HTML entities
 def clean_html_text(text):
     if text is None:
         return None
@@ -176,40 +84,57 @@ def read_crawled(log_path):
                 pages.append((key, path, url))
     return pages
 
-# Extract the year from a report key or date
-def report_year(key, date):
-    match = REPORT_YEAR_RE.search(key)
-    if match:
-        return int(match.group(0))
-    return int(date[:4])
 
 
-# DRIVERS
+# === DRIVERS ===
+
+# JSON-LD block with the page's main person (plain JSON, not escaped)
+DRIVER_PERSON_RE = re.compile(r'"@type":"Person",(.*?)</script>')
+DRIVER_NAME_RE = re.compile(r'"name":"([^"]+)"')
+DRIVER_BIRTH_DATE_RE = re.compile(r'"birthDate":"([^"]+)"')
+DRIVER_DEATH_DATE_RE = re.compile(r'"deathDate":"([^"]+)"')
+DRIVER_NATIONALITY_RE = re.compile(r'"nationality":\{"@type":"Country","name":"([^"]+)"')
+DRIVER_AWARDS_RE = re.compile(r'"award":\[(.*?)\]')
+DRIVER_AWARD_ITEM_RE = re.compile(r'"([^"]+)"')
+DRIVER_F1_TITLE_RE = re.compile(
+    r'^(\d{4}) (FIA World Championship of Drivers|FIA World Championship Formula One'
+    r'|FIA Formula One World Championship|FIA Formula 1 World Championship)$'
+)
+# Escaped NEXT.JS JSON - the page has records of several drivers, so we create a link back to the driver
+DRIVER_PLACES_RE = (
+    r'\\"place_of_birth\\":(?:\\"([^"]*?)\\"|null),\\"dod\\":[^,]*,'
+    r'\\"place_of_death\\":(?:\\"([^"]*?)\\"|null),\\"ddb_url\\":\\"{slug}\\"'
+)
+# F1 stats block (the page also has stats from other series)
+DRIVER_F1_STATS_RE = re.compile(
+    r'\\"legacy_url\\":\\"formula-1\\",\\"championship_id\\":1,\\"stats\\":'
+    r'{\\"races\\":(\d+),\\"wins\\":(\d+),\\"podiums\\":(\d+),\\"poles\\":(\d+)'
+)
 
 # Extract driver fields from the driver HTML page
 def extract_driver(html, slug):
-    person = first_match(PERSON_RE, html) or ""
+    person = first_match(DRIVER_PERSON_RE, html) or ""
 
     awards = []
-    awards_block = first_match(AWARDS_RE, person)
+    awards_block = first_match(DRIVER_AWARDS_RE, person)
     if awards_block:
-        awards = AWARD_ITEM_RE.findall(awards_block)
+        awards = DRIVER_AWARD_ITEM_RE.findall(awards_block)
 
     f1_titles = []
     for award in awards:
-        match = F1_TITLE_RE.match(award)
+        match = DRIVER_F1_TITLE_RE.match(award)
         if match:
             f1_titles.append(int(match.group(1)))
 
     place_of_birth = None
     place_of_death = None
-    places = re.search(PLACES_RE.format(slug=re.escape(slug)), html)
+    places = re.search(DRIVER_PLACES_RE.format(slug=re.escape(slug)), html)
     if places:
         place_of_birth = clean_value(places.group(1))
         place_of_death = clean_value(places.group(2))
 
     f1_stats = {}
-    stats = F1_STATS_RE.search(html)
+    stats = DRIVER_F1_STATS_RE.search(html)
     if stats:
         f1_stats = {
             "races": int(stats.group(1)),
@@ -221,10 +146,10 @@ def extract_driver(html, slug):
     return {
         "id": f"driver:{slug}",
         "type": "driver",
-        "name": first_match(NAME_RE, person),
-        "birth_date": first_match(BIRTH_DATE_RE, person),
-        "death_date": first_match(DEATH_DATE_RE, person),
-        "nationality": first_match(NATIONALITY_RE, person),
+        "name": first_match(DRIVER_NAME_RE, person),
+        "birth_date": first_match(DRIVER_BIRTH_DATE_RE, person),
+        "death_date": first_match(DRIVER_DEATH_DATE_RE, person),
+        "nationality": first_match(DRIVER_NATIONALITY_RE, person),
         "f1_titles": sorted(f1_titles),
         "awards": awards,
         "place_of_birth": place_of_birth,
@@ -248,11 +173,27 @@ def driver_text(driver):
 
 
 
-# RACE RESUTLS
+# === RACE-RESULTS ===
+
+# Race page: name, date and track
+RACE_NAME_RE = re.compile(r'<h1[^>]*>([^<]+)</h1>')
+RACE_DATE_RE = re.compile(r'"@type":"SportsEvent".*?"startDate":"([^"]+)"')
+RACE_TRACK_RE = re.compile(r'"@type":"SportsActivityLocation","name":"([^"]+)"')
+# Result records in escaped JSON
+RACE_RESULT_START_RE = re.compile(r'\{\\"session_results_id\\":(\d+),')
+RACE_POSITION_RE = re.compile(r'\\"finish_position\\":(\d+)')
+RACE_GRID_RE = re.compile(r'\\"grid_position\\":(\d+)')
+RACE_STATUS_RE = re.compile(r'\\"finish_status\\":\\"([^"\\]+)\\"')
+RACE_LAPS_RE = re.compile(r'\\"total_driving_laps\\":(\d+)')
+RACE_POINTS_RE = re.compile(r'\\"championship_points\\":([\d.]+)')
+RACE_CAR_NUMBER_RE = re.compile(r'\\"car_number\\":\\"([^"\\]+)\\"')
+RACE_DRIVER_NAME_RE = re.compile(r'\\"full_name\\":\\"([^"\\]+)\\"')
+RACE_DRIVER_SLUG_RE = re.compile(r'\\"profile_url\\":\\"/drivers/([^"\\]+)\\"')
+RACE_TEAM_RE = re.compile(r'\\"team\\":\{\\"id\\":\d+,\\"name\\":\\"([^"\\]+)\\"')
 
 # Split the page into result records and extract fields
 def extract_results(html):
-    starts = list(RESULT_START_RE.finditer(html))
+    starts = list(RACE_RESULT_START_RE.finditer(html))
     results = {}
     for i, start in enumerate(starts):
         result_id = start.group(1)
@@ -266,15 +207,15 @@ def extract_results(html):
             end = len(html)
         segment = html[start.start():end]
         results[result_id] = {
-            "position": first_number(POSITION_RE, segment),
-            "driver": first_match(RESULT_DRIVER_NAME_RE, segment),
-            "driver_slug": first_match(RESULT_DRIVER_SLUG_RE, segment),
-            "team": first_match(RESULT_TEAM_RE, segment),
-            "car_number": first_match(CAR_NUMBER_RE, segment),
-            "grid": first_number(GRID_RE, segment),
-            "laps": first_number(LAPS_RE, segment),
-            "points": first_number(POINTS_RE, segment, float),
-            "status": first_match(STATUS_RE, segment) or "finished",
+            "position": first_number(RACE_POSITION_RE, segment),
+            "driver": first_match(RACE_DRIVER_NAME_RE, segment),
+            "driver_slug": first_match(RACE_DRIVER_SLUG_RE, segment),
+            "team": first_match(RACE_TEAM_RE, segment),
+            "car_number": first_match(RACE_CAR_NUMBER_RE, segment),
+            "grid": first_number(RACE_GRID_RE, segment),
+            "laps": first_number(RACE_LAPS_RE, segment),
+            "points": first_number(RACE_POINTS_RE, segment, float),
+            "status": first_match(RACE_STATUS_RE, segment) or "finished",
         }
     return list(results.values())
 
@@ -310,7 +251,42 @@ def race_result_text(race):
 
 
 
-# RACE REPORTS
+# === RACE REPORTS ===
+
+# f1-fansite race report: Wordpress HTML
+REPORT_TITLE_RE = re.compile(r'<h1[^>]*>\s*([^<]+?)\s*</h1>')
+REPORT_DATE_RE = re.compile(r'<time class="entry-date"[^>]*datetime="(\d{4}-\d{2}-\d{2})')
+REPORT_EVENT_RE = re.compile(r'Event:(?:</strong>)?\s*<a[^>]*>([^<]+)</a>')
+REPORT_TRACK_RE = re.compile(r'Track:(?:</strong>)?\s*<a[^>]*>([^<]+)</a>')
+REPORT_WEATHER_RE = re.compile(r'Weather:(?:</strong>)?\s*(.*?)(?:<br|</p>)', re.DOTALL)
+REPORT_YEAR_RE = re.compile(r'(?:19|20)\d{2}')
+# Article
+REPORT_ARTICLE_RE = re.compile(
+    r'<div id="post-\d+" class="entry [^"]*"\s*>(.*?)'
+    r'(?:<h[23][^>]*>[^<]*</h[23]>\s*)?<div id="msr_result"',
+    re.DOTALL,
+)
+# Results table and its rows
+REPORT_TABLE_RE = re.compile(r'<table class="motor-sport-results msr_result[^"]*">(.*?)</table>', re.DOTALL)
+REPORT_ROW_RE = re.compile(r'<tr[^>]*>(.*?)</tr>', re.DOTALL)
+REPORT_ROW_POSITION_RE = re.compile(r'msr-rank-badge">(\d+)<')
+REPORT_ROW_NUMBER_RE = re.compile(r'<th class="msr_col2">([^<]*)<')
+REPORT_ROW_DRIVER_RE = re.compile(r'class="msr-driver-name[^"]*"[^>]*aria-label="([^"]+)"')
+# Team cell has two markups (with and without msr-result-team span), anchor on the col
+REPORT_ROW_TEAM_RE = re.compile(r'<td class="msr_col4">.*?<a [^>]*>([^<]+)</a>', re.DOTALL)
+REPORT_ROW_GRID_RE = re.compile(r'<td class="msr_col8">(\d+)<')
+REPORT_ROW_LAPS_RE = re.compile(r'<td class="msr_col6">(\d+)<')
+REPORT_ROW_STATUS_RE = re.compile(r'msr-rank-classified"[^>]*>([^<]+)<')
+# Finish time, or retirement reason
+REPORT_ROW_TIME_RE = re.compile(r'<td class="msr_col5">([^<]+)<')
+REPORT_ROW_POINTS_RE = re.compile(r'<td class="msr_col9">([\d.]+)<')
+
+# Extract the year from a report key or date
+def report_year(key, date):
+    match = REPORT_YEAR_RE.search(key)
+    if match:
+        return int(match.group(0))
+    return int(date[:4])
 
 # Extract result rows from the f1-fansite results table
 def extract_report_results(html):
@@ -320,19 +296,19 @@ def extract_report_results(html):
     results = []
     for row in REPORT_ROW_RE.findall(table):
         # Skip header 
-        driver = first_match(ROW_DRIVER_RE, row)
+        driver = first_match(REPORT_ROW_DRIVER_RE, row)
         if driver is None:
             continue
         results.append({
-            "position": first_number(ROW_POSITION_RE, row),
-            "car_number": first_match(ROW_NUMBER_RE, row),
+            "position": first_number(REPORT_ROW_POSITION_RE, row),
+            "car_number": first_match(REPORT_ROW_NUMBER_RE, row),
             "driver": clean_html_text(driver),
-            "team": clean_html_text(first_match(ROW_TEAM_RE, row)),
-            "grid": first_number(ROW_GRID_RE, row),
-            "laps": first_number(ROW_LAPS_RE, row),
-            "time": clean_html_text(first_match(ROW_TIME_RE, row)),
-            "points": first_number(ROW_POINTS_RE, row, float),
-            "status": first_match(ROW_STATUS_RE, row) or "finished"
+            "team": clean_html_text(first_match(REPORT_ROW_TEAM_RE, row)),
+            "grid": first_number(REPORT_ROW_GRID_RE, row),
+            "laps": first_number(REPORT_ROW_LAPS_RE, row),
+            "time": clean_html_text(first_match(REPORT_ROW_TIME_RE, row)),
+            "points": first_number(REPORT_ROW_POINTS_RE, row, float),
+            "status": first_match(REPORT_ROW_STATUS_RE, row) or "finished"
         })
     return results
 
@@ -372,7 +348,14 @@ def race_report_text(report):
 
 
 
-# TEAMS
+# === TEAMS ===
+
+TEAM_LD_RE = re.compile(r'"@type":"SportsTeam","name":"([^"]+)","url":"[^"]*"(?:,"description":"((?:[^"\\]|\\.)*)")?')
+TEAM_TITLE_RE = re.compile(r'<title>([^<]+?) – ')
+TEAM_FULL_NAME_RE = r'\\"name\\":\\"([^"\\]+)\\",\\"team_ddb_url\\":\\"{slug}\\"'
+TEAM_COUNTRY_RE = r'\\"team_ddb_url\\":\\"{slug}\\",\\"country\\":\{{\\"id\\":\d+,\\"name\\":\\"([^"\\]+)\\"'
+TEAM_HEADQUARTERS_RE = re.compile(r'\\"headquarters\\":\\"([^"\\]+)\\"')
+TEAM_PRINCIPAL_RE = re.compile(r'\\"principal\\":\\"([^"\\]+)\\"')
 
 # Extract team fields from the team HTML page
 def extract_team(html, slug):
@@ -392,8 +375,8 @@ def extract_team(html, slug):
         "name": clean_html_text(name) if name else None,
         "full_name": first_match(re.compile(TEAM_FULL_NAME_RE.format(slug=slug_re)), html),
         "country": first_match(re.compile(TEAM_COUNTRY_RE.format(slug=slug_re)), html),
-        "headquarters": first_match(HEADQUARTERS_RE, html),
-        "principal": first_match(PRINCIPAL_RE, html),
+        "headquarters": first_match(TEAM_HEADQUARTERS_RE, html),
+        "principal": first_match(TEAM_PRINCIPAL_RE, html),
         "description": clean_html_text(description) if description else None,
     }
 
@@ -404,15 +387,26 @@ def team_text(team):
 
 
 
-# TRACKS
+# === TRACKS ===
+
+TRACK_NAME_RE = re.compile(r'"@type":"SportsActivityLocation","name":"([^"]+)"')
+TRACK_COUNTRY_RE = re.compile(r'"addressCountry":"([^"]+)"')
+TRACK_GEO_RE = re.compile(r'"latitude":(-?[\d.]+),"longitude":(-?[\d.]+)')
+TRACK_DESCRIPTION_RE = re.compile(r'>Track Information</h3><p[^>]*>(.*?)</p>', re.DOTALL)
+TRACK_LAYOUTS_RE = re.compile(r'\\"layouts\\":\[(.*?)\]')
+TRACK_NO_DESCRIPTION = "No information available."
+TRACK_LAYOUT_ITEM_RE = re.compile(
+    r'\\"layout_name\\":(?:\\"([^"\\]*)\\"|null),\\"length_meters\\":(\d+|null),'
+    r'\\"active_from\\":(\d+|null),\\"active_to\\":(\d+|null)'
+)
 
 # Extract the list of track layouts
 def extract_layouts(html):
     layouts = []
-    block = first_match(LAYOUTS_RE, html)
+    block = first_match(TRACK_LAYOUTS_RE, html)
     if not block:
         return layouts
-    for name, length, active_from, active_to in LAYOUT_ITEM_RE.findall(block):
+    for name, length, active_from, active_to in TRACK_LAYOUT_ITEM_RE.findall(block):
         layouts.append({
             "name": clean_html_text(name) or None,
             "length_meters": int_or_none(length),
@@ -433,7 +427,7 @@ def extract_track(html, slug):
     description = first_match(TRACK_DESCRIPTION_RE, html)
     if description:
         description = html_to_text(description)
-    if description == NO_DESCRIPTION:
+    if description == TRACK_NO_DESCRIPTION:
         description = None
 
     name = first_match(TRACK_NAME_RE, html)
@@ -457,9 +451,17 @@ def track_text(track):
 
 
 
-# COMMON EXTRACT
+# === RUN ===
 
-# Extract all crawled pages of on type into a JSONL file
+EXTRACTORS = [
+    ("drivers", DRIVER_LOG_PATH, DRIVERS_JSONL, extract_driver, driver_text),
+    ("race_results", RACE_RESULTS_LOG_PATH, RACE_RESULTS_JSONL, extract_race_result, race_result_text),
+    ("race_reports", RACE_REPORTS_LOG_PATH, RACE_REPORTS_JSONL, extract_race_report, race_report_text),
+    ("teams", TEAMS_LOG_PATH, TEAMS_JSONL, extract_team, team_text),
+    ("tracks", TRACKS_LOG_PATH, TRACKS_JSONL, extract_track, track_text),
+]
+
+# Extract all crawled pages of one type into a JSONL file
 def extract_pages(label, log_path, jsonl_path, extract_page, page_text):
     print(f"===Extracting {label}...===")
     os.makedirs(EXTRACTED_DIR, exist_ok=True)
@@ -474,56 +476,9 @@ def extract_pages(label, log_path, jsonl_path, extract_page, page_text):
             out.write(json.dumps(page, ensure_ascii=False) + "\n")
     print(f"===Extracted {len(pages)} {label} to {jsonl_path}.===")
 
-# Count how many records have a non-empty value for each field.
-# For lists of dicts (e.g. results) also count each nested field over all items.
-def coverage(jsonl_path):
-    counts = {}
-    nested_counts = {}  # "results.team" -> filled items
-    nested_totals = {}  # "results" -> number of items
-    total = 0
-    with open(jsonl_path, encoding="utf-8") as f:
-        for line in f:
-            record = json.loads(line)
-            total += 1
-            for field, value in record.items():
-                if field not in counts:
-                    counts[field] = 0
-                # None, "", [] and {} count as missing
-                if value:
-                    counts[field] += 1
-
-                # Nested: list of dicts
-                if isinstance(value, list) and value and isinstance(value[0], dict):
-                    nested_totals[field] = nested_totals.get(field, 0) + len(value)
-                    for item in value:
-                        for sub_field, sub_value in item.items():
-                            name = f"{field}.{sub_field}"
-                            if name not in nested_counts:
-                                nested_counts[name] = 0
-                            # 0 is a valid value (e.g. 0 points), only None and "" are missing
-                            if sub_value is not None and sub_value != "":
-                                nested_counts[name] += 1
-
-    print(f"===Coverage of {jsonl_path} ({total} records)===")
-    for field, count in counts.items():
-        print(f"\t{field:<20} {count:>6} / {total}  ({count / total * 100:.1f} %)")
-
-    for name, count in nested_counts.items():
-        field = name.split(".")[0]
-        items = nested_totals[field]
-        print(f"\t{name:<20} {count:>6} / {items}  ({count / items * 100:.1f} %)")
-
-
-
-EXTRACTORS = [
-    ("drivers", DRIVER_LOG_PATH, DRIVERS_JSONL, extract_driver, driver_text),
-    ("race_results", RACE_RESULTS_LOG_PATH, RACE_RESULTS_JSONL, extract_race_result, race_result_text),
-    ("race_reports", RACE_REPORTS_LOG_PATH, RACE_REPORTS_JSONL, extract_race_report, race_report_text),
-    ("teams", TEAMS_LOG_PATH, TEAMS_JSONL, extract_team, team_text),
-    ("tracks", TRACKS_LOG_PATH, TRACKS_JSONL, extract_track, track_text),
-]
-
-if __name__ == "__main__":
+def extract_all():
     for label, log_path, jsonl_path, extract_page, page_text in EXTRACTORS:
         extract_pages(label, log_path, jsonl_path, extract_page, page_text)
-        coverage(jsonl_path)
+
+if __name__ == "__main__":
+    extract_all()
