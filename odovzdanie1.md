@@ -476,6 +476,8 @@ Index sa uloží do `index/index.json` (28 MB):
 
 **Váha TF.** Holé tf delené dĺžkou dokumentu zvýhodňovalo veľmi krátke dokumenty (na dopyt `ayrton senna` vyhral Bruno Senna, ktorého profil je kratší). Preto používame TF so saturáciou a normalizáciou dĺžky voči priemernému dokumentu (TF časť vzorca BM25, k1 = 1,2, b = 0,75): každý ďalší výskyt termu pridá menej ako predchádzajúci a dokumenty dlhšie ako priemer sú mierne penalizované.
 
+Vzorec TF je zlomok zo vzorca Okapi BM25. Z BM25 preberáme iba váhu TF. Jeho IDF `log((N − df + 0,5) / (df + 0,5))` je probabilistické, a preto ho nepoužívame - obe naše metódy IDF (classic a max) sú neprobabilistické.
+
 ```text
 tf_weight = tf · (k1 + 1) / (tf + k1 · (1 − b + b · dĺžka / priemerná_dĺžka))
 skóre(d) = Σ tf_weight(t, d) · idf(t)  ·  (1 + počet termov dopytu v titulku / počet termov dopytu)
@@ -522,6 +524,8 @@ N = 3403 je počet dokumentov, df(t) počet dokumentov, ktoré obsahujú term t,
 | **classic** | idf(t) = log(N / df(t)) | zriedkavosť termu voči celej kolekcii |
 | **max** | idf(t) = log(max_df / (1 + df(t))) | zriedkavosť termu voči najčastejšiemu termu v kolekcii |
 
+Classic je štandardné IDF. Max je variant „inverse document frequency max“. Probabilistické IDF `log((N − df) / df)` nepoužívame.
+
 ```python
 # Classic IDF: log(N / df)
 def idf_classic(df, data):
@@ -560,7 +564,7 @@ Spustenie: `uv run src/cli.py search <dopyt> --idf compare`. Tabuľky ukazujú t
 
 Pri classic majú `mclaren` a `championship` ešte váhu 0,74, takže vyhrá tím McLaren. Pri max ich váha klesne na 0,27 a o poradí rozhoduje najmä zriedkavejší term `honda` (1,79), preto vyhrá tím Honda a hore sa dostanú reporty z 60. rokov, keď Honda pretekala ako tím (1965 Mexiko - prvé víťazstvo Hondy).
 
-### 2. `gearbox dnf` - poradie sa zmení (podrobný výpočet nižšie)
+### 2. `gearbox dnf` - poradie sa zmení
 
 | # | classic | skóre | max | skóre |
 | --- | --- | --- | --- | --- |
@@ -622,18 +626,24 @@ Obsahuje:
 - `src/` - crawler, extraktor, indexer, vyhľadávanie, štatistiku a CLI,
 - `tests/` - unit testy a 22 testovacích stránok,
 - `assets/` - diagramy architektúry,
+- `index/` - hotový index (`index.json`, 28 MB),
 - `pyproject.toml`, `uv.lock` - závislosti,
 - `odovzdanie1.md` - tento report, `README.md` a `konzultacia2A.md` - reporty z 1. a 2. konzultácie.
 
-Stiahnuté stránky (`data/`, 1,07 GB), extrahované dáta (`extracted/`) ani index (`index/`) v ZIP-e nie sú. Vzniknú spustením týchto krokov v uvedenom poradí:
+Stiahnuté stránky (`data/`, 1,07 GB) ani extrahované dáta (`extracted/`) v ZIP-e nie sú. Index je priložený, takže vyhľadávanie a testy sa dajú spustiť hneď, bez crawlovania:
 
 ```text
 uv sync
+uv run src/cli.py search abu dhabi 2021
+uv run pytest
+```
+
+Celý postup od začiatku (stiahnutie, extrakcia, index) vznikne spustením týchto krokov v uvedenom poradí:
+
+```text
 uv run src/cli.py crawl all
 uv run src/cli.py extract
 uv run src/cli.py index
-uv run src/cli.py search abu dhabi 2021
-uv run pytest
 ```
 
 ## BONUS: Počet tokenov (tiktoken)
