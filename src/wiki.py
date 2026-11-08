@@ -17,10 +17,11 @@ XML_ENTITIES = { "lt": "<", "gt": ">", "quot": '"', "amp": "&", "apos": "'" }
 
 # Infobox name -> our document type, names counted on the whole dump (pages mentioning F1)
 PAGE_TYPES = [
-    ("race", re.compile(r'\{\{\s*Infobox[ _]Grand[ _]Prix[ _]race[ _]report\b', re.IGNORECASE)),
+    ("race", re.compile(r'\{\{\s*(?:Infobox[ _]Grand[ _]Prix[ _]race[ _]report|Grand[ _]Prix[ _]race[ _]report[ _]infobox)\b', re.IGNORECASE)),
     ("driver", re.compile(r'\{\{\s*Infobox[ _](?:F1|racing|Champ[ _]Car|Le[ _]Mans|NASCAR)[ _]driver\b', re.IGNORECASE)),
     ("track", re.compile(r'\{\{\s*Infobox[ _]motorsport[ _]venue\b', re.IGNORECASE)),
-    ("team", re.compile(r'\{\{\s*Infobox[ _](?:F1[ _]team|former[ _]F1[ _]team|F1[ _]constructor|motor[ _]racing[ _]team)\b', re.IGNORECASE))
+    # Teams: many constructors (BRM, Alfa Romeo, Ferrari) use the F1 engine manufacturer infobox
+    ("team", re.compile(r'\{\{\s*Infobox[ _](?:F1[ _]team|former[ _]F1[ _]team|F1[ _]constructor|F1[ _]engine[ _]manufacturer|motor[ _]racing[ _]team)\b', re.IGNORECASE)),
 ]
 # The page must mention F1
 F1_MENTION_RE = re.compile(r'Formula One|Formula 1|Indianapolis 500')
@@ -30,7 +31,7 @@ F1_MENTION_RE = re.compile(r'Formula One|Formula 1|Indianapolis 500')
 # === WIKITEXT ===
 
 # Infobox starts at the first {{Infobox, ends where the article text starts (bold title or first heading)
-INFOBOX_START_RE = re.compile(r'\{\{\s*Infobox', re.IGNORECASE)
+INFOBOX_START_RE = re.compile(r'\{\{\s*(?:Infobox|[^{}|\n]*[ _]infobox\b)', re.IGNORECASE)
 INFOBOX_END_RE = re.compile(r"\n'''|\n==")
 # One infobox field per line: | name = value
 FIELD_RE = re.compile(r'^\s*\|\s*([A-Za-z0-9_ ]+?)\s*=[ \t]*(.*?)\s*$', re.MULTILINE)
