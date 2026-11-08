@@ -2,6 +2,8 @@
 data/
 extracted/
 index/
+wiki_dump/
+extracted_spark/
 
 # Python
 __pycache__/

@@ -242,7 +242,7 @@ def extract_race_result(html, key):
 def race_result_text(race):
     parts = [race["name"], str(race["year"]), race["track"]]
     if race["winner"]:
-        parts.append(f"winner {race["winner"]}")
+        parts.append(f"winner {race['winner']}")
     for result in race["results"]:
         parts.append(result["driver"])
         parts.append(result["team"])
