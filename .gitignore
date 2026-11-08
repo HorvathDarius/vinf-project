@@ -4,6 +4,7 @@ extracted/
 index/
 wiki_dump/
 extracted_spark/
+wiki_spark/
 
 # Python
 __pycache__/
@@ -20,3 +21,4 @@ venv/
 .idea/
 
 *.zip
+*.log

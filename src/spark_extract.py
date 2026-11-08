@@ -1,6 +1,8 @@
 import json
-import os 
+import os
+import time
 from pyspark.sql import SparkSession
+from common import print_elapsed_time
 from extract import EXTRACTORS, read_crawled
 
 # One partition per core of the local machine (12 cores)
@@ -10,7 +12,7 @@ EXTRACTOR_BY_LABEL = {
     label: (extract_page, page_text)
     for label, log_path, jsonl_path, extract_page, page_text in EXTRACTORS
 }
-# Outout dir
+# Output dir
 SPARK_EXTRACTED_DIR = "extracted_spark"
 
 # All crawled pages of all types as (label, key, path, url) built in the driver
@@ -41,17 +43,33 @@ def write_jsonl(lines, jsonl_path):
             out.write(line + "\n")
     return out_path
 
+# Total size of files in MB
+def size_mb(paths):
+    return sum(os.path.getsize(path) for path in paths) / (1024 * 1024)
+
 # Extract all crawled pages in parallel with Spark into extracted_spark/<type>.jsonl
 def main():
+    total_start = time.time()
     spark = SparkSession.builder.appName("vinf-extract").getOrCreate()
     tasks = build_tasks()
-    print("===Extracting {} pages with Spark ({} partitions)".format(len(tasks), PARTITIONS))
+    print("===Extracting {} pages, {:.1f} MB of HTML with Spark ({} partitions)===".format(
+        len(tasks), size_mb([path for label, key, path, url in tasks]), PARTITIONS))
+
+    # count() runs the extraction of all pages once, the results stay in the cache
+    start = time.time()
     pages = spark.sparkContext.parallelize(tasks, PARTITIONS).map(extract_task).cache()
+    pages.count()
+    print_elapsed_time("SPARK EXTRACT", start)
+
+    start = time.time()
     for label, log_path, jsonl_path, extract_page, page_text in EXTRACTORS:
         lines = pages.filter(lambda record, label=label: record[0] == label).map(lambda record: record[1]).collect()
         out_path = write_jsonl(lines, jsonl_path)
-        print("===Extracted {} {} to {}".format(len(lines), label, out_path))
+        print("===Extracted {} {} to {} ({:.1f} MB)===".format(len(lines), label, out_path, size_mb([out_path])))
+    print_elapsed_time("SPARK WRITE", start)
+
     spark.stop()
+    print_elapsed_time("SPARK TOTAL", total_start)
 
 if __name__ == "__main__":
     main()
