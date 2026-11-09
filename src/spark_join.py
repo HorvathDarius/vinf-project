@@ -153,28 +153,20 @@ def main():
     # Wiki key table: (key type, key) -> title, from titles, race dates and redirects (aliases)
     start = time.time()
     title_types = entities.map(lambda entity: (entity["title"], entity["type"]))
-    alias_keys = redirects.map(lambda redirect: (redirect["target"], redirect["title"])) \
-        .join(title_types) \
-        .map(lambda pair: ((pair[1][1], name_key(pair[1][0])), pair[0])) \
-        .filter(lambda pair: pair[0][1])
-    wiki_keys = entities.flatMap(lambda entity: [(key, entity["title"]) for key in entity_keys(entity)]) \
-        .union(alias_keys).distinct()
+    alias_keys = redirects.map(lambda redirect: (redirect["target"], redirect["title"])).join(title_types).map(lambda pair: ((pair[1][1], name_key(pair[1][0])), pair[0])).filter(lambda pair: pair[0][1])
+    wiki_keys = entities.flatMap(lambda entity: [(key, entity["title"]) for key in entity_keys(entity)]).union(alias_keys).distinct()
 
     # Candidates: our document keys joined with the wiki keys of the same type
     our_keys = docs.flatMap(lambda doc: [(key, doc["id"]) for key in doc_keys(doc)])
     candidates = our_keys.join(wiki_keys).map(lambda pair: (pair[1][0], pair[1][1]))
     # Tracks also by coordinates: every track with every wiki track (87 x 212 pairs)
     wiki_tracks = entities.filter(lambda entity: entity["type"] == "track" and entity.get("coordinates"))
-    near_tracks = docs.filter(lambda doc: doc["type"] == "track").cartesian(wiki_tracks) \
-        .filter(lambda pair: (track_distance(pair[0], pair[1]) or TRACK_DISTANCE_KM) < TRACK_DISTANCE_KM) \
-        .map(lambda pair: (pair[0]["id"], pair[1]["title"]))
+    near_tracks = docs.filter(lambda doc: doc["type"] == "track").cartesian(wiki_tracks).filter(lambda pair: (track_distance(pair[0], pair[1]) or TRACK_DISTANCE_KM) < TRACK_DISTANCE_KM).map(lambda pair: (pair[0]["id"], pair[1]["title"]))
     candidates = candidates.union(near_tracks).groupByKey().mapValues(list)
 
     # Left outer join: every document stays, unmatched ones get None
     entity_by_title = sc.broadcast(entities.map(lambda entity: (entity["title"], entity)).collectAsMap())
-    joined = docs.map(lambda doc: (doc["id"], doc)).leftOuterJoin(candidates) \
-        .map(lambda pair: (pair[1][0], best_match(pair[1][0], pair[1][1] or [], entity_by_title.value))) \
-        .cache()
+    joined = docs.map(lambda doc: (doc["id"], doc)).leftOuterJoin(candidates).map(lambda pair: (pair[1][0], best_match(pair[1][0], pair[1][1] or [], entity_by_title.value))).cache()
     results = joined.collect()
     print_elapsed_time("JOIN", start)
 
