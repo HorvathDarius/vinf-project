@@ -2,8 +2,8 @@ import re
 import json
 import os
 import html as html_lib
-from crawl import DRIVER_LOG_PATH, RACE_RESULTS_LOG_PATH, TEAMS_LOG_PATH, TRACKS_LOG_PATH
-from crawl_fansite import RACE_REPORTS_LOG_PATH
+from crawling.crawl import DRIVER_LOG_PATH, RACE_RESULTS_LOG_PATH, TEAMS_LOG_PATH, TRACKS_LOG_PATH
+from crawling.crawl_fansite import RACE_REPORTS_LOG_PATH
 
 # === DIRS ===
 EXTRACTED_DIR = "extracted"

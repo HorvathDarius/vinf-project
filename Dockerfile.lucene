@@ -1,0 +1,4 @@
+# Official PyLucene image (Lucene 10.0.0, Python 3.15) + the project dependencies from pyproject.toml
+# (requests for common.py, tiktoken for stats.py), so the whole CLI runs in this image
+FROM coady/pylucene:10.0.0
+RUN pip install --no-cache-dir requests tiktoken

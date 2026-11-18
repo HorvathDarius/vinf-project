@@ -1,10 +1,10 @@
 import json
 import os
 import tiktoken
-from extract import EXTRACTORS, read_crawled
-from index import INDEX_PATH, tokenize
-from crawl import STANDINGS_DIR, CALENDAR_DIR, TEAMS_BY_YEAR_DIR
-from crawl_fansite import SITEMAPS_DIR
+from extraction.extract import EXTRACTORS, read_crawled
+from basic_search.index import INDEX_PATH, tokenize
+from crawling.crawl import STANDINGS_DIR, CALENDAR_DIR, TEAMS_BY_YEAR_DIR
+from crawling.crawl_fansite import SITEMAPS_DIR
 
 ENCODING = "cl100k_base" # tiktoken encoding used by GPT-4
 # Column key -> header shown in the table

@@ -1,5 +1,5 @@
 import os 
-from extract import extract_driver ,extract_race_result, extract_race_report, extract_team, extract_track
+from extraction.extract import extract_driver ,extract_race_result, extract_race_report, extract_team, extract_track
 
 PAGES = os.path.join(os.path.dirname(__file__), "pages")
 

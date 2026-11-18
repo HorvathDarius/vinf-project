@@ -1,11 +1,11 @@
 import argparse
 import traceback
 
-import crawl
-import crawl_fansite
-import extract
-import index
-import search
+import crawling.crawl as crawl
+import crawling.crawl_fansite as crawl_fansite
+import extraction.extract as extract
+import basic_search.index as index
+import basic_search.search as search
 import stats
 
 # Crawl one source or both

@@ -2,7 +2,7 @@ import json
 import os
 import re
 import unicodedata
-from extract import EXTRACTORS
+from extraction.extract import EXTRACTORS
 
 INDEX_DIR = "index"
 INDEX_PATH = INDEX_DIR + "/index.json"

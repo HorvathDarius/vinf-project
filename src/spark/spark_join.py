@@ -6,7 +6,7 @@ import re
 import time
 from pyspark.sql import SparkSession
 from common import print_elapsed_time
-from index import tokenize
+from basic_search.index import tokenize
 
 # Inputs: our extracted documents (step 1) and wiki entities + redirects (step 2)
 OUR_JSONL = "extracted_spark/*.jsonl"

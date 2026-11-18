@@ -4,7 +4,7 @@ import time
 from pyspark import StorageLevel
 from pyspark.sql import SparkSession
 from common import print_elapsed_time
-import wiki
+import spark.wiki as wiki
 
 # Wikipedia dump: all 71 parts of enwiki-20261001-pages-articles (for development only part 1)
 DUMP_FILES = "wiki_dump/*.bz2"

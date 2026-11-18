@@ -1,6 +1,6 @@
 import json
 import math
-from index import INDEX_PATH, tokenize
+from basic_search.index import INDEX_PATH, tokenize
 
 K1 = 1.2 # How fast repeated occurrences of a term stop adding score
 B = 0.75 # How strongly long documents are penalized (0 = not at all, 1 = fully)

@@ -3,7 +3,7 @@ import os
 import time
 from pyspark.sql import SparkSession
 from common import print_elapsed_time
-from extract import EXTRACTORS, read_crawled
+from extraction.extract import EXTRACTORS, read_crawled
 
 # One partition per core of the local machine (12 cores)
 PARTITIONS = 12
