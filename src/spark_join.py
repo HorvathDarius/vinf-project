@@ -144,7 +144,7 @@ def main():
     spark = SparkSession.builder.appName("vinf-join").getOrCreate()
     sc = spark.sparkContext
 
-    docs = read_jsonl(sc, OUR_JSONL).filter(lambda doc: doc.get("type") in WIKI_TYPE).cache()
+    docs = read_jsonl(sc, OUR_JSONL).filter(lambda doc: doc.get("type") in WIKI_TYPE and "wiki_title" not in doc).cache()
     entities = read_jsonl(sc, ENTITIES_JSONL).cache()
     redirects = read_jsonl(sc, REDIRECTS_JSONL)
     print("===Joining {} documents with {} wiki entities and {} redirects===".format(

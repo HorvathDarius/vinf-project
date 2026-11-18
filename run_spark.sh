@@ -1,10 +1,9 @@
 #!/bin/bash
-# Run a PySpark job in the course image: ./run_spark.sh src/<job>.py [args...]
-docker run --rm --platform linux/amd64 \
+# Run a PySpark job in the official Spark image: ./run_spark.sh src/<job>.py [args...]
+# The image is built from Dockerfile read on stdin, so the 24 GB project folder is not sent as build context
+docker build -q -t vinf-spark - < Dockerfile > /dev/null || exit 1
+docker run --rm \
   -v "$PWD":/project -w /project \
-  -e PYSPARK_PYTHON=python3 \
   -e PYTHONPATH=/project/src \
-  -e LANG=C.UTF-8 -e PYTHONIOENCODING=utf-8 \
-  --entrypoint bash \
-  iisas/hadoop-spark-pig-hive:2.9.2 \
-  -c 'export SPARK_DIST_CLASSPATH=$(hadoop classpath); spark-submit --master "local[*]" --driver-memory 10g "$@"' _ "$@"
+  vinf-spark \
+  /opt/spark/bin/spark-submit --master "local[*]" --driver-memory 10g "$@"
