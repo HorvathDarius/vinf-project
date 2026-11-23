@@ -8,6 +8,11 @@ import basic_search.index as index
 import basic_search.search as search
 import stats
 
+# Search engines: own index from part 1, Lucene index from part 2, or both side by side
+ENGINES = ["old", "lucene", "compare"]
+# Results per engine in the side by side comparison
+COMPARE_TOP_K = 5
+
 # Crawl one source or both
 def run_crawl(source):
     if source in ("driverdb", "all"):
@@ -23,15 +28,24 @@ def cmd_extract(args):
     extract.extract_all()
 
 def cmd_index(args):
-    index.build()
+    if args.engine == "lucene":
+        build_lucene_index()
+    else:
+        index.build()
 
 # Search one query, or start interactive search if no query is given
 def cmd_search(args):
-    data = search.load_index()
-    if args.query:
-        search.run_query(" ".join(args.query), data, args.idf)
+    query_text = " ".join(args.query)
+    if args.engine == "lucene":
+        search_lucene(query_text)
+    elif args.engine == "compare":
+        compare_engines(query_text)
     else:
-        search.interactive(data, args.idf)
+        data = search.load_index()
+        if query_text:
+            search.run_query(query_text, data, args.idf)
+        else:
+            search.interactive(data, args.idf)
 
 def cmd_stats(args):
     stats.print_stats()
@@ -49,11 +63,13 @@ def main():
     extract_parser.set_defaults(func=cmd_extract)
 
     index_parser = commands.add_parser("index", help="Build inverted index from extracted .jsonl files")
+    index_parser.add_argument("--engine", choices=["old", "lucene"], default="old", help="Own index (part 1) or Lucene index (part 2)")
     index_parser.set_defaults(func=cmd_index)
 
     search_parser = commands.add_parser("search", help="Search the index for a query")
     search_parser.add_argument("query", nargs="*", help="Query string to search for")
     search_parser.add_argument("--idf", choices=["classic", "max", "compare"], default="classic", help="IDF method to use for scoring")
+    search_parser.add_argument("--engine", choices=ENGINES, default="old", help="Own index (part 1), Lucene index (part 2), or both side by side")
     search_parser.set_defaults(func=cmd_search)
 
     stats_parser = commands.add_parser("stats", help="Print statistics about the data")
@@ -88,6 +104,78 @@ def menu_crawl():
 def menu_search():
     search.interactive(search.load_index())
 
+
+
+# === LUCENE ===
+# Lucene is imported only when used: on the Mac (uv) PyLucene is not installed, the old search still works there
+
+# Start the Java VM once per process (a second initVM fails) and return the Lucene modules
+def lucene_modules():
+    try:
+        import lucene
+    except ImportError:
+        raise RuntimeError("PyLucene is not installed here, run the CLI with ./run_lucene.sh src/cli.py")
+    if lucene.getVMEnv() is None:
+        lucene.initVM()
+    from lucene_search import lucene_build, lucene_query
+    return lucene_build, lucene_query
+
+# Same steps as lucene_build.main(), without starting the VM again
+def build_lucene_index():
+    lucene_build, lucene_query = lucene_modules()
+    docs = lucene_build.load_documents()
+    lucene_build.print_documents_stats(docs)
+    lucene_build.build_index(docs)
+    lucene_build.print_index_stats()
+
+# One query, or interactive search without one
+def search_lucene(query_text=None):
+    lucene_build, lucene_query = lucene_modules()
+    lucene_searcher = lucene_query.LuceneSearcher()
+    if query_text:
+        lucene_query.print_results(lucene_searcher, query_text)
+    else:
+        lucene_query.interactive(lucene_searcher)
+    lucene_searcher.close()
+
+# Top results of the old index (classic IDF) and the Lucene index side by side
+def compare_query(query_text, data, lucene_searcher):
+    import lucene
+    old_results = search.search(query_text, data, "classic", COMPARE_TOP_K)
+    try:
+        query = lucene_searcher.parse(query_text)
+    except lucene.JavaError as error:
+        print("Invalid query: {}".format(error.getJavaException().getMessage()))
+        return
+    total, new_results = lucene_searcher.search(query, COMPARE_TOP_K)
+    print("===Compare: {}===".format(query_text))
+    print("   {:<50} {}".format("old index", "lucene ({} hits)".format(total)))
+    for rank in range(COMPARE_TOP_K):
+        left = data["docs"][old_results[rank][0]]["title"] if rank < len(old_results) else ""
+        right = new_results[rank][1].get("title") if rank < len(new_results) else ""
+        print("{:>2}. {:<50} {}".format(rank + 1, left[:48], right[:60]))
+    print()
+
+# Compare one query, or read queries in a loop until :q
+def compare_engines(query_text=None):
+    lucene_build, lucene_query = lucene_modules()
+    data = search.load_index()
+    lucene_searcher = lucene_query.LuceneSearcher()
+    if query_text:
+        compare_query(query_text, data, lucene_searcher)
+    else:
+        print("Old index vs Lucene index. Type a query, or :q to quit.")
+        while True:
+            line = ask("f1 [compare]> ")
+            if line in ("0", ":q", ":quit"):
+                break
+            if line:
+                compare_query(line, data, lucene_searcher)
+    lucene_searcher.close()
+
+
+
+
 # Menu option -> (label, function)
 MENU = {
     "1": ("Crawl", menu_crawl),
@@ -95,6 +183,9 @@ MENU = {
     "3": ("Index", index.build),
     "4": ("Search", menu_search),
     "5": ("Stats", stats.print_stats),
+     "6": ("Lucene index", build_lucene_index),
+    "7": ("Lucene search", search_lucene),
+    "8": ("Compare old vs Lucene", compare_engines),
 }
 
 # Main menu loop, an error in one action is printed and the menu continues
